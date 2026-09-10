@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pole Motion exchange format 0.1.0 (draft)",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "poses", "recordings", "movements"],
+  "properties": {
+    "schema_version": {"const": "0.1.0"},
+    "poses": {"type": "array", "items": {"$ref": "#/$defs/pose"}},
+    "recordings": {"type": "array", "items": {"$ref": "#/$defs/recording"}},
+    "movements": {"type": "array", "items": {"$ref": "#/$defs/movement"}}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+    "text": {"type": "string", "minLength": 1},
+    "time": {"type": "number", "minimum": 0},
+    "review": {
+      "type": "object", "additionalProperties": false, "required": ["status"],
+      "properties": {
+        "status": {"enum": ["draft", "validated", "rejected"]},
+        "reviewer": {"$ref": "#/$defs/text"},
+        "reviewed_at": {"$ref": "#/$defs/text"},
+        "notes": {"type": "string"}
+      },
+      "if": {"properties": {"status": {"const": "validated"}}},
+      "then": {"required": ["reviewer", "reviewed_at"]}
+    },
+    "reference": {
+      "type": "object", "additionalProperties": false, "required": ["recording_id", "t"],
+      "properties": {"recording_id": {"$ref": "#/$defs/id"}, "t": {"$ref": "#/$defs/time"}}
+    },
+    "pose": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "name", "aliases", "description", "references", "review"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "name": {"$ref": "#/$defs/text"},
+        "aliases": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/text"}},
+        "description": {"type": "string"},
+        "references": {"type": "array", "items": {"$ref": "#/$defs/reference"}},
+        "review": {"$ref": "#/$defs/review"}
+      }
+    },
+    "landmark": {
+      "description": "x/width, y/height, visibility; x/y may lie outside the image. NOT x,y,z.",
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "prefixItems": [{"type": "number"}, {"type": "number"}, {"type": "number", "minimum": 0, "maximum": 1}]
+    },
+    "interval": {
+      "type": "object", "additionalProperties": false, "required": ["t0", "t1"],
+      "properties": {"t0": {"$ref": "#/$defs/time"}, "t1": {"$ref": "#/$defs/time"}}
+    },
+    "recording": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "source", "duration_s", "coordinate_system", "landmark_set", "producer", "pole", "frames", "contacts", "holds", "events", "review"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "source": {
+          "type": "object", "additionalProperties": false,
+          "properties": {"sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "synthetic": {"const": true}},
+          "oneOf": [{"required": ["sha256"]}, {"required": ["synthetic"]}]
+        },
+        "duration_s": {"type": "number", "exclusiveMinimum": 0},
+        "coordinate_system": {"const": "image_xy_visibility"},
+        "landmark_set": {"const": "mediapipe_pose_33"},
+        "producer": {
+          "type": "object", "additionalProperties": false, "required": ["name", "sample_fps_requested"],
+          "properties": {"name": {"$ref": "#/$defs/text"}, "sample_fps_requested": {"type": "number", "exclusiveMinimum": 0}}
+        },
+        "pole": {
+          "type": "object", "additionalProperties": false, "required": ["x", "method"],
+          "properties": {"x": {"type": ["number", "null"], "minimum": 0, "maximum": 1}, "method": {"type": "string"}}
+        },
+        "frames": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["t", "landmarks"],
+            "properties": {
+              "t": {"$ref": "#/$defs/time"},
+              "landmarks": {"type": ["array", "null"], "minItems": 33, "maxItems": 33, "items": {"$ref": "#/$defs/landmark"}}
+            }
+          }
+        },
+        "contacts": {
+          "type": "array", "items": {
+            "type": "object", "additionalProperties": false, "required": ["part", "t0", "t1"],
+            "properties": {"part": {"enum": ["left_hand", "right_hand", "left_foot", "right_foot"]}, "t0": {"$ref": "#/$defs/time"}, "t1": {"$ref": "#/$defs/time"}}
+          }
+        },
+        "holds": {"type": "array", "items": {"$ref": "#/$defs/interval"}},
+        "events": {
+          "type": "array", "items": {
+            "type": "object", "additionalProperties": false, "required": ["kind", "t", "part", "value"],
+            "properties": {
+              "kind": {"enum": ["invert", "arm_ext", "leg_ext", "straddle", "line"]},
+              "t": {"$ref": "#/$defs/time"}, "part": {"type": "string"}, "value": {"type": "number"}
+            }
+          }
+        },
+        "review": {"$ref": "#/$defs/review"}
+      }
+    },
+    "movement": {
+      "type": "object", "additionalProperties": false, "required": ["id", "name", "steps", "review"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "name": {"$ref": "#/$defs/text"}, "review": {"$ref": "#/$defs/review"},
+        "steps": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["pose_id", "at_s", "hold_s"],
+            "properties": {"pose_id": {"$ref": "#/$defs/id"}, "at_s": {"$ref": "#/$defs/time"}, "hold_s": {"$ref": "#/$defs/time"}}
+          }
+        }
+      }
+    }
+  }
+}

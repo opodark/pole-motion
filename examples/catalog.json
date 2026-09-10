@@ -1,0 +1,22 @@
+{
+  "schema_version": "0.1.0",
+  "poses": [{
+    "id": "demo-pose", "name": "Posa dimostrativa da catalogare", "aliases": [],
+    "description": "Esempio di struttura, non una figura tecnica validata.",
+    "references": [{"recording_id": "demo-recording", "t": 0}],
+    "review": {"status": "draft"}
+  }],
+  "recordings": [{
+    "id": "demo-recording", "source": {"synthetic": true}, "duration_s": 2,
+    "coordinate_system": "image_xy_visibility", "landmark_set": "mediapipe_pose_33",
+    "producer": {"name": "synthetic-example", "sample_fps_requested": 1},
+    "pole": {"x": null, "method": "unknown"},
+    "frames": [{"t": 0, "landmarks": null}], "contacts": [], "holds": [], "events": [],
+    "review": {"status": "draft"}
+  }],
+  "movements": [{
+    "id": "demo-movement", "name": "Sequenza dimostrativa",
+    "steps": [{"pose_id": "demo-pose", "at_s": 0, "hold_s": 1}],
+    "review": {"status": "draft"}
+  }]
+}
