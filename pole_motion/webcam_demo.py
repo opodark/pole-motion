@@ -242,12 +242,21 @@ def run(camera: int = 0, width: int = 1280, height: int = 720, mirror: bool = Tr
                 # qui si ri-etichetta al framerate REALMENTE misurato, altrimenti
                 # la durata del video non combacia con quella della sessione
                 # (e con i timestamp di frames/contatti/fermi/eventi nel JSON).
-                subprocess.run(["ffmpeg", "-y", "-r", f"{avg:.3f}", "-i", str(raw_path),
-                                "-r", f"{avg:.3f}", "-c:v", "libx264",
-                                "-pix_fmt", "yuv420p", "-preset", "veryfast",
-                                str(record), "-loglevel", "error"], check=False)
-                raw_path.unlink(missing_ok=True)
+                result = subprocess.run(["ffmpeg", "-y", "-r", f"{avg:.3f}", "-i", str(raw_path),
+                                         "-r", f"{avg:.3f}", "-c:v", "libx264",
+                                         "-pix_fmt", "yuv420p", "-preset", "veryfast",
+                                         str(record), "-loglevel", "error"], check=False)
+                if result.returncode == 0:
+                    raw_path.unlink(missing_ok=True)
+                else:
+                    print(f"ffmpeg ha fallito (exit {result.returncode}): "
+                          f"tengo il video grezzo -> {raw_path}")
+                    raw_path.replace(record)
             else:
+                print(f"ffmpeg non trovato: video salvato ai {record_fps:.0f} fps nominali "
+                      "del writer, mentre i timestamp nel JSON sono in tempo reale -- "
+                      "possibile desincronizzazione se la webcam non ha girato esattamente "
+                      "a quella frequenza.")
                 raw_path.replace(record)
 
             if not frames:
