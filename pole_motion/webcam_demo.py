@@ -1,9 +1,9 @@
-"""Prototipo esplorativo: pose in tempo reale dalla webcam del Mac.
+"""Prototipo esplorativo: pose in tempo reale dalla webcam.
 
-Su macOS `cv2.VideoCapture` usa il backend nativo **AVFoundation**: e' gia'
-la "API webcam del Mac", non serve altro per iniziare. Riusa la STESSA
-logica di `pose.py` gia' validata sui video-tutorial (palo dai keypoint,
-contatti mano/piede, fermi, eventi) invece di reinventarla per il live:
+`cv2.VideoCapture` usa il backend nativo della piattaforma (AVFoundation su
+macOS, MSMF/DirectShow su Windows): non serve altro per iniziare. Riusa la
+STESSA logica di `pose.py` gia' validata sui video-tutorial (palo dai
+keypoint, contatti mano/piede, fermi, eventi) invece di reinventarla per il live:
 
 - ad ogni fotogramma campionato: presa "live" (leggera, solo per l'HUD) e
   un indicatore FERMO approssimato (media mobile del movimento);
@@ -19,13 +19,22 @@ con lo stesso identico formato prodotto dall'analisi di un video registrato.
 Non fa parte del contratto dati 0.1.0 e non e' collegato a `pyproject.toml`
 (nessun entry point). Va lanciato a mano.
 
-Permesso Fotocamera (macOS)
-----------------------------
-La PRIMA esecuzione va fatta da un Terminale/iTerm normale (non da uno
-strumento automatizzato): macOS mostra il dialog "vuole accedere alla
-fotocamera" solo in una sessione interattiva con interfaccia. Una volta
-concesso, resta valido per quel binario Python (visibile poi in
-Preferenze di Sistema > Privacy e sicurezza > Fotocamera).
+OpenCV con supporto GUI
+------------------------
+L'extra `pose` installa `opencv-python-headless` (basta per `pole-motion
+analyze` su file, non apre finestre). Questo script apre una finestra live
+con `cv2.imshow`, che la build headless non supporta: serve la build normale,
+es. `pip install opencv-python` (disinstalla prima l'headless se presente,
+altrimenti potrebbe restare quella attiva).
+
+Permesso Fotocamera
+--------------------
+La PRIMA esecuzione va fatta da un terminale normale (non da uno strumento
+automatizzato): il sistema operativo mostra il dialog di permesso camera
+solo in una sessione interattiva con interfaccia.
+- macOS: Preferenze di Sistema > Privacy e sicurezza > Fotocamera.
+- Windows: Impostazioni > Privacy e sicurezza > Fotocamera (verificare anche
+  che "Consenti alle app desktop di accedere alla fotocamera" sia attivo).
 
 CLI:  python -m pole_motion.webcam_demo [--camera 0] [--record out.mp4] [--id nome]
 """
