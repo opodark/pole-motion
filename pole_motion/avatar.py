@@ -6,7 +6,7 @@ import numpy as np
 from . import pose
 
 
-def motion_from_frames(frames, source_hash):
+def motion_from_frames(frames, source_hash, pole_x=None):
     result = []
     previous = -1.0
     has_root = False
@@ -34,11 +34,14 @@ def motion_from_frames(frames, source_hash):
     return {"schema_version": "pole-motion-avatar-0.1", "source_sha256": source_hash,
             "coordinate_system": "mediapipe_world_xyz_visibility_hip_centered",
             "units": "estimated_meters", "landmark_set": "mediapipe_pose_33",
-            "review": "draft", "root_translation": has_root, "frames": result}
+            "review": "draft", "root_translation": has_root, "frames": result,
+            "pole_x": pole_x}
 
 
 def reconstruct(path):
     path = Path(path)
     with path.open("rb") as stream:
         digest = hashlib.file_digest(stream, "sha256").hexdigest()
-    return motion_from_frames(pose.analyze_video(path, fps_sample=12), digest)
+    frames = pose.analyze_video(path, fps_sample=12)
+    pole_x, _ = pose.pole_x_auto(path, frames)
+    return motion_from_frames(frames, digest, pole_x)

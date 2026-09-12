@@ -27,6 +27,14 @@ const midpoint = (points, a, b) => point(points, a).add(point(points, b)).multip
 const VIS_ACQUIRE = 0.25;
 const VIS_RELEASE = 0.12;
 const SMOOTH = 0.35;
+// setFromUnitVectors e' instabile quando la direzione target e' vicina
+// all'opposto (~180 gradi) di quella di riposo: sceglie un asse di
+// rotazione arbitrario, che puo' cambiare da un fotogramma all'altro e
+// far "girare di scatto" collo/arti. Un salto reale > MAX_JUMP in un solo
+// fotogramma e' quasi sempre questo caso degenere (o rumore), non un
+// movimento plausibile: quel fotogramma viene ignorato per quel bone
+// invece di inseguirlo.
+const MAX_JUMP = 2.0;
 
 export class RealAvatar {
   constructor(canvas, sample, sampleRoot, status) {
@@ -73,10 +81,10 @@ export class RealAvatar {
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     this.scene.add(floor);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 3.5, 24), new THREE.MeshStandardMaterial({ color: 0xd9dde0, roughness: 0.18, metalness: 0.9 }));
-    pole.position.set(0.48, 1.75, -0.05);
-    pole.castShadow = pole.receiveShadow = true;
-    this.scene.add(pole);
+    this.pole = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 3.5, 24), new THREE.MeshStandardMaterial({ color: 0xd9dde0, roughness: 0.18, metalness: 0.9 }));
+    this.pole.position.set(0.48, 1.75, -0.05);
+    this.pole.castShadow = this.pole.receiveShadow = true;
+    this.scene.add(this.pole);
     this.ready = new GLTFLoader().loadAsync('/models/female-athlete.glb').then(gltf => {
       this.model = gltf.scene;
       this.model.traverse(object => {
@@ -112,6 +120,7 @@ export class RealAvatar {
         this.rest.set(name, { quaternion: bone.quaternion.clone(), direction: child.position.clone().applyQuaternion(bone.quaternion).normalize() });
       }
       this.lastTime = null;
+      this._positionPole();
       this.status('Modello 3D pronto. Il movimento viene trasferito sul rig umano.');
     }).catch(error => {
       this.status('Modello 3D non caricato: ' + error.message);
@@ -127,6 +136,19 @@ export class RealAvatar {
     this.locked.clear();
     this.rootOrigin = motion.frames.map(frame => frame.root).find(root => root && root[2] >= 0.25) || null;
     if (this.basePosition) this.targetPosition = this.basePosition.clone();
+    this._positionPole();
+  }
+
+  // Il palo nella scena era fisso e inventato, scollegato dal video: lo
+  // ancora invece alla x del palo rilevata nell'analisi (`motion.pole_x`),
+  // con la stessa conversione pixel->metri gia' usata per la traslazione
+  // dell'anca (`apply()`), cosi' i due seguono la stessa scala.
+  _positionPole() {
+    if (!this.pole || !this.basePosition) return;
+    const poleX = this.motion?.pole_x;
+    this.pole.position.x = (Number.isFinite(poleX) && this.rootOrigin)
+      ? this.basePosition.x + (poleX - this.rootOrigin[0]) * 3.0
+      : this.basePosition.x + 0.48;
   }
 
   view(name) {
@@ -177,7 +199,7 @@ export class RealAvatar {
       const parentWorld = bone.parent.getWorldQuaternion(new THREE.Quaternion());
       const desired = point(points, end).sub(point(points, start)).normalize().applyQuaternion(parentWorld.invert());
       const target = new THREE.Quaternion().setFromUnitVectors(rest.direction, desired).multiply(rest.quaternion);
-      bone.quaternion.slerp(target, SMOOTH);
+      if (bone.quaternion.angleTo(target) <= MAX_JUMP) bone.quaternion.slerp(target, SMOOTH);
       bone.updateWorldMatrix(true, true);
     }
 

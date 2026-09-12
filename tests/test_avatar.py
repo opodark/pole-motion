@@ -1,5 +1,8 @@
+import hashlib
+
 import numpy as np
 import pytest
+from pole_motion import avatar, pose
 from pole_motion.pose import PoseFrame
 from pole_motion.avatar import motion_from_frames
 
@@ -28,3 +31,19 @@ def test_motion_keeps_image_space_hip_trajectory():
     result = motion_from_frames([PoseFrame(0, lm=image, world=world)], "abc")
     assert result["root_translation"] is True
     assert result["frames"][0]["root"] == [.5, .8, 1.0]
+
+
+def test_motion_carries_pole_x_for_the_3d_scene():
+    assert motion_from_frames([PoseFrame(0)], "abc")["pole_x"] is None
+    assert motion_from_frames([PoseFrame(0)], "abc", pole_x=0.42)["pole_x"] == 0.42
+
+
+def test_reconstruct_reuses_the_same_frames_for_pole_x(tmp_path, monkeypatch):
+    video = tmp_path / "clip.mp4"
+    video.write_bytes(b"synthetic video stand-in")
+    frames = [PoseFrame(0)]
+    monkeypatch.setattr(pose, "analyze_video", lambda *a, **kw: frames)
+    monkeypatch.setattr(pose, "pole_x_auto", lambda path, fr: (0.37, "synthetic") if fr is frames else (0, "wrong"))
+    result = avatar.reconstruct(video)
+    assert result["pole_x"] == 0.37
+    assert result["source_sha256"] == hashlib.sha256(video.read_bytes()).hexdigest()
