@@ -162,6 +162,17 @@ def analyze_video(path: Path | str, fps_sample: float = 8.0, max_people: int = 1
     return frames
 
 
+CENTER_X = 0.5  # nel setup tipico (un palo, un'allieva) il palo principale e' in mezzo all'inquadratura
+
+
+def _center_bias(x, sigma: float = 0.15, boost: float = 0.5):
+    """Peso >=1 che favorisce candidati vicini al centro dell'inquadratura
+    a parita' di altri segnali, senza escludere un palo davvero fuori
+    centro se il segnale a suo favore e' comunque piu' forte."""
+    x = np.asarray(x, dtype=float)
+    return 1.0 + boost * np.exp(-((x - CENTER_X) ** 2) / (2 * sigma ** 2))
+
+
 def pole_x(path: Path | str, probe_frames: int = 12) -> Optional[float]:
     """x NORMALIZZATA (0..1) del palo: linea quasi verticale piu' votata,
     mediata su alcuni fotogrammi. None se non trovata."""
@@ -191,7 +202,8 @@ def pole_x(path: Path | str, probe_frames: int = 12) -> Optional[float]:
             if ang > 74:                                 # quasi verticale
                 cand.append((x1 + x2) / 2.0 / w)
         if cand:
-            xs.append(float(np.median(cand)))
+            cand = np.array(cand)
+            xs.append(float(np.average(cand, weights=_center_bias(cand))))
     cap.release()
     if len(xs) < max(2, probe_frames // 4):              # troppo poche linee -> non fidarsi
         return None
@@ -202,10 +214,11 @@ def pole_x(path: Path | str, probe_frames: int = 12) -> Optional[float]:
     return float(np.median(keep)) if len(keep) >= 2 else None
 
 
-def pole_x_auto(path: Path | str, frames: list[PoseFrame]) -> tuple[Optional[float], str]:
+def pole_x_auto(path: Path | str, frames: list[PoseFrame]) -> tuple[float, str]:
     """x del palo, robusta: nel pole la presa e' SUL palo, quindi i
     keypoint sono il segnale piu' affidabile. Hough solo di conferma /
-    ripiego. Ritorna (x | None, sorgente)."""
+    ripiego. Se nessuno dei due trova nulla, assume il centro
+    dell'inquadratura (CENTER_X). Ritorna (x, sorgente)."""
     kp = pole_x_from_pose(frames)
     hg = pole_x(path)
     if kp is not None and hg is not None and abs(kp - hg) < 0.08:
@@ -214,7 +227,11 @@ def pole_x_auto(path: Path | str, frames: list[PoseFrame]) -> tuple[Optional[flo
         return kp, "keypoint"
     if hg is not None:
         return hg, "Hough"
-    return None, "non trovato"
+    # Nessun segnale: nel setup tipico (un palo, un'allieva) il palo
+    # principale e' comunque al centro dell'inquadratura, meglio una stima
+    # utile che niente (contatti/fermi altrimenti non verrebbero calcolati
+    # affatto). Da correggere a mano nello Studio per inquadrature con piu' pali.
+    return CENTER_X, "centro (stima, nessun segnale)"
 
 
 def pole_x_from_pose(frames: list[PoseFrame]) -> Optional[float]:
@@ -232,9 +249,11 @@ def pole_x_from_pose(frames: list[PoseFrame]) -> Optional[float]:
     if len(xs) < 8:
         return None
     xs = np.array(xs)
-    # moda robusta: centro della finestra 0.12 piu' popolata
+    # moda robusta: centro della finestra 0.12 piu' popolata, con un bias
+    # verso il centro dell'inquadratura a parita' di voti (vedi CENTER_X)
     grid = np.linspace(0.1, 0.9, 33)
-    best = grid[np.argmax([np.sum(np.abs(xs - g) < 0.06) for g in grid])]
+    counts = np.array([np.sum(np.abs(xs - g) < 0.06) for g in grid])
+    best = grid[np.argmax(counts * _center_bias(grid))]
     inl = xs[np.abs(xs - best) < 0.06]
     return float(np.median(inl)) if len(inl) >= 6 else None
 

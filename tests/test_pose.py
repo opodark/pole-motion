@@ -3,8 +3,9 @@ import numpy as np
 import pytest
 
 from pole_motion.pose import (
-    GRIP_PARTS, IDX, Contact, PoseFrame, _ang, _bbox_visible, _motion, _part_xy, _torso_bbox,
-    body_metrics, capabilities, contacts, detect_events, detect_holds,
+    CENTER_X, GRIP_PARTS, IDX, Contact, PoseFrame, _ang, _bbox_visible, _motion, _part_xy,
+    _torso_bbox, body_metrics, capabilities, contacts, detect_events, detect_holds,
+    pole_x_auto, pole_x_from_pose,
 )
 
 
@@ -126,6 +127,22 @@ def test_detect_events_finds_invert_run_and_extension_peak():
     assert "invert" in kinds
     inv = [e for e in ev if e.kind == "invert"][0]
     assert 0.8 < inv.t < 1.8                    # dentro la finestra capovolta
+
+
+def test_pole_x_from_pose_prefers_center_cluster_over_a_slightly_larger_offcenter_one():
+    # 6 punti sul palo centrale (x=0.5) contro 8 punti fuori centro (x=0.15):
+    # senza bias vincerebbe il gruppo piu' numeroso fuori centro; il palo
+    # principale nel setup tipico e' sempre al centro dell'inquadratura.
+    frames = [PoseFrame(t=float(i), lm=_lm(l_wrist=(0.5, 0.5))) for i in range(6)]
+    frames += [PoseFrame(t=float(i + 6), lm=_lm(l_wrist=(0.15, 0.5))) for i in range(8)]
+    assert pole_x_from_pose(frames) == pytest.approx(0.5)
+
+
+def test_pole_x_auto_falls_back_to_frame_center_when_no_signal():
+    frames = [PoseFrame(t=float(i)) for i in range(5)]  # nessun landmark
+    x, method = pole_x_auto("nessun-video-del-genere.mp4", frames)
+    assert x == CENTER_X
+    assert "centro" in method
 
 
 def test_capabilities():
