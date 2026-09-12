@@ -35,3 +35,4 @@ def test_export_preserves_missing_frames_and_marks_draft(tmp_path, monkeypatch):
     assert r["source"] == {"sha256": hashlib.sha256(video.read_bytes()).hexdigest()}
     assert "private-file" not in str(result)
     assert result["poses"] == []
+    assert r["pole"]["track"] == [0.5, 0.5]                  # una x per frame, palo fermo qui

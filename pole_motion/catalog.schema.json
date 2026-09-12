@@ -67,7 +67,14 @@
         },
         "pole": {
           "type": "object", "additionalProperties": false, "required": ["x", "method"],
-          "properties": {"x": {"type": ["number", "null"], "minimum": 0, "maximum": 1}, "method": {"type": "string"}}
+          "properties": {
+            "x": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+            "method": {"type": "string"},
+            "track": {
+              "description": "x del palo per ciascun elemento di frames, nello stesso ordine; segue la camera se si sposta. Assente/null se x e' null.",
+              "type": ["array", "null"], "items": {"type": "number", "minimum": 0, "maximum": 1}
+            }
+          }
         },
         "frames": {
           "type": "array", "minItems": 1,

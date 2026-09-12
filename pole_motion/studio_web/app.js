@@ -37,21 +37,25 @@ $('forward').onclick=()=>{video.pause();video.currentTime=Math.min(video.duratio
 $('seek').oninput=e=>{video.currentTime=+e.target.value;};
 $('speed').onchange=e=>{video.playbackRate=+e.target.value;};
 $('overlay').onchange=draw;
-function nearest(t){
+function frameIndex(t){
   if(!recording?.frames.length)return null;
   const frames=recording.frames;let lo=0,hi=frames.length;
   while(lo<hi){const mid=(lo+hi)>>1;if(frames[mid].t<t)lo=mid+1;else hi=mid;}
-  const a=frames[Math.max(0,lo-1)],b=frames[Math.min(lo,frames.length-1)];
-  const result=Math.abs(a.t-t)<=Math.abs(b.t-t)?a:b;
-  return Math.abs(result.t-t)<=.3?result:null;
+  const ia=Math.max(0,lo-1),ib=Math.min(lo,frames.length-1);
+  const i=Math.abs(frames[ia].t-t)<=Math.abs(frames[ib].t-t)?ia:ib;
+  return Math.abs(frames[i].t-t)<=.3?i:null;
 }
+function nearest(t){const i=frameIndex(t);return i===null?null:recording.frames[i];}
 function draw(){
   const canvas=$('skeleton'),stage=$('stage');const ratio=video.videoWidth/video.videoHeight;
   if(!Number.isFinite(ratio)){canvas.width=0;return;}
   const width=Math.min(stage.clientWidth,stage.clientHeight*ratio),height=width/ratio;
   canvas.style.width=width+'px';canvas.style.height=height+'px';canvas.width=Math.round(width*devicePixelRatio);canvas.height=Math.round(height*devicePixelRatio);
   const ctx=canvas.getContext('2d');ctx.scale(devicePixelRatio,devicePixelRatio);
-  const frame=nearest(video.currentTime),fresh=performance.now()-liveUpdated<1000,points=liveStream?(fresh?livePoints:null):frame?.landmarks;
+  const frameIdx=frameIndex(video.currentTime),frame=frameIdx===null?null:recording.frames[frameIdx];
+  const fresh=performance.now()-liveUpdated<1000,points=liveStream?(fresh?livePoints:null):frame?.landmarks;
+  const track=recording?.pole?.track;
+  const poleX=(track&&frameIdx!==null&&track[frameIdx]!=null)?track[frameIdx]:(recording?.pole?.x??null);
   if(liveStream&&fresh&&livePicture.width)ctx.drawImage(livePicture,0,0,width,height);
   if(recording){
     const contacts=recording.contacts.filter(c=>c.t0<=video.currentTime&&c.t1>=video.currentTime);
@@ -68,7 +72,7 @@ function draw(){
       if(n>1e-8)angles.push({a,joint:b,c,degrees:Math.round(Math.acos(Math.max(-1,Math.min(1,(u[0]*v[0]+u[1]*v[1])/n)))*180/Math.PI)});
     }
     window.liveEffectPoints=points;
-    LiveEffects.update({pole_x:recording?.pole?.x??null,contacts:[],angles,focus_held:held,turn_candidate:false},points,video.currentTime*1000);
+    LiveEffects.update({pole_x:poleX,contacts:[],angles,focus_held:held,turn_candidate:false},points,video.currentTime*1000);
   }
   const paintEffects=()=>{if((liveStream&&fresh)||(!liveStream&&recording))LiveEffects.paint(ctx,width,height,!!liveStream&&$('mirror').checked);};
   if(!points||!$('overlay').checked){paintEffects();return;}

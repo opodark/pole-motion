@@ -17,7 +17,8 @@ def test_example(catalog):
     validate(catalog)
 
 
-@pytest.mark.parametrize("case", ["duplicate", "reference", "ordering", "interval", "unknown_pose", "nan"])
+@pytest.mark.parametrize("case", ["duplicate", "reference", "ordering", "interval", "unknown_pose", "nan",
+                                   "pole_track"])
 def test_rejects_broken_relationships(catalog, case):
     r = catalog["recordings"][0]
     if case == "duplicate":
@@ -30,6 +31,8 @@ def test_rejects_broken_relationships(catalog, case):
         r["holds"] = [{"t0": 1, "t1": 0.5}]
     elif case == "unknown_pose":
         catalog["movements"][0]["steps"][0]["pose_id"] = "missing"
+    elif case == "pole_track":
+        r["pole"]["track"] = [0.1, 0.2]                     # 2 valori per 1 solo frame
     else:
         r["duration_s"] = float("nan")
     with pytest.raises(ValueError):

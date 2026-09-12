@@ -17,6 +17,10 @@ def build_record(recording_id, source, duration_s, frames, px, method, sample_fp
     contacts = pose.contacts(frames, px)
     holds = pose.detect_holds(frames, contacts)
     events = pose.detect_events(frames)
+    # Traccia per fotogramma: la stessa che usa `contacts` internamente, cosi'
+    # il player web puo' seguire il palo se la camera si sposta invece di
+    # disegnare una linea ferma sulla sola stima globale.
+    track = pose.pole_track(frames, px).tolist() if px is not None and frames else None
     return {
         "id": recording_id,
         "source": source,
@@ -24,7 +28,7 @@ def build_record(recording_id, source, duration_s, frames, px, method, sample_fp
         "coordinate_system": "image_xy_visibility",
         "landmark_set": "mediapipe_pose_33",
         "producer": {"name": "pole-motion/mediapipe", "sample_fps_requested": sample_fps},
-        "pole": {"x": px, "method": method},
+        "pole": {"x": px, "method": method, "track": track},
         "frames": [{"t": f.t, "landmarks": f.lm.tolist() if f.lm is not None else None} for f in frames],
         "contacts": [{"part": c.part, "t0": c.t0, "t1": c.t1} for c in contacts],
         "holds": [{"t0": h.t0, "t1": h.t1} for h in holds],

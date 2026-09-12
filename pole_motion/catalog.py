@@ -42,6 +42,9 @@ def validate(document):
         for event in record["events"]:
             if event["t"] > record["duration_s"]:
                 raise ValueError("Event outside recording duration")
+        track = record["pole"].get("track")
+        if track is not None and len(track) != len(record["frames"]):
+            raise ValueError("Pole track must have one entry per frame")
 
     for pose in document["poses"]:
         for ref in pose["references"]:

@@ -266,7 +266,7 @@ def _part_xy(lm: np.ndarray, names, vis_min: float = 0.4):
     return float(a[0]), float(a[1])
 
 
-def _pole_track(frames: list[PoseFrame], anchor: float, band: float = 0.09,
+def pole_track(frames: list[PoseFrame], anchor: float, band: float = 0.09,
                  alpha: float = 0.15) -> np.ndarray:
     """x del palo per fotogramma: parte da `anchor` (la stima globale) e si
     lascia trascinare solo da prese vicine alla stima CORRENTE, cosi' un
@@ -289,11 +289,11 @@ def contacts(frames: list[PoseFrame], px_pole: Optional[float], band: float = 0.
              min_dur: float = 0.25) -> list[Contact]:
     """Intervalli in cui una mano/piede sta sul palo (entro `band` in x) e
     si muove poco. `px_pole` normalizzato, usato come ancora iniziale del
-    tracking (vedi `_pole_track`): segue il palo se la camera si sposta
+    tracking (vedi `pole_track`): segue il palo se la camera si sposta
     invece di restare fisso sulla stima globale. None -> niente contatti."""
     if px_pole is None:
         return []
-    track = _pole_track(frames, px_pole, band)
+    track = pole_track(frames, px_pole, band)
     out: list[Contact] = []
     for part, names in GRIP_PARTS.items():
         run_start = None
@@ -606,7 +606,7 @@ def debug_video(path: Path | str, out_path: Path | str, frames: list[PoseFrame],
     # traccia il palo fotogramma per fotogramma: se la camera si sposta,
     # la linea disegnata deve seguirlo invece di restare ferma sulla stima
     # globale (vedi `contacts`, che usa lo stesso tracking).
-    track = _pole_track(by_t, px_pole) if (px_pole is not None and by_t) else None
+    track = pole_track(by_t, px_pole) if (px_pole is not None and by_t) else None
     labels = labels or {}
     events = events or []
     EV_COL = {"invert": (240, 80, 240), "arm_ext": (255, 220, 40),
