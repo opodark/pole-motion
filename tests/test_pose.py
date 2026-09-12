@@ -56,6 +56,21 @@ def test_contacts_needs_pole_and_proximity():
     assert far == []
 
 
+def test_contacts_follows_a_slow_camera_pan_instead_of_losing_the_grip():
+    # La presa resta SUL palo per tutta la clip, ma il palo si sposta
+    # gradualmente in x sullo schermo (la camera pana un po'): senza
+    # tracking, una volta usciti dalla `band` intorno alla stima iniziale
+    # il contatto si perderebbe a meta' clip anche se la presa non si e'
+    # mai staccata dal palo.
+    frames = [PoseFrame(t=i * 0.1, lm=_lm(l_wrist=(0.3 + i * 0.01, 0.4),
+                                          l_index=(0.3 + i * 0.01, 0.4),
+                                          l_thumb=(0.3 + i * 0.01, 0.4)))
+              for i in range(30)]
+    cts = [c for c in contacts(frames, px_pole=0.3) if c.part == "left_hand"]
+    assert len(cts) == 1
+    assert cts[0].t1 - cts[0].t0 > 2.0                   # copre quasi tutta la clip, non solo l'inizio
+
+
 def test_detect_holds_splits_on_motion():
     body = dict(l_shoulder=(0.4, 0.3), r_shoulder=(0.6, 0.3), l_hip=(0.42, 0.6),
                 r_hip=(0.58, 0.6), l_knee=(0.42, 0.8), r_knee=(0.58, 0.8),

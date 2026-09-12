@@ -266,25 +266,47 @@ def _part_xy(lm: np.ndarray, names, vis_min: float = 0.4):
     return float(a[0]), float(a[1])
 
 
+def _pole_track(frames: list[PoseFrame], anchor: float, band: float = 0.09,
+                 alpha: float = 0.15) -> np.ndarray:
+    """x del palo per fotogramma: parte da `anchor` (la stima globale) e si
+    lascia trascinare solo da prese vicine alla stima CORRENTE, cosi' un
+    pan lento della camera non fa perdere i contatti a meta' video. Non
+    insegue candidati lontani (rumore, altri soggetti): resta ancorato
+    finche' non arriva una presa plausibilmente sul palo."""
+    track = np.full(len(frames), anchor, dtype=float)
+    current = anchor
+    for i, pf in enumerate(frames):
+        if pf.lm is not None:
+            near = [float(pf.lm[IDX[n], 0]) for n in ("l_wrist", "r_wrist", "l_ankle", "r_ankle")
+                    if pf.lm[IDX[n], 2] >= 0.5 and abs(pf.lm[IDX[n], 0] - current) < band * 1.5]
+            if near:
+                current += alpha * (float(np.median(near)) - current)
+        track[i] = current
+    return track
+
+
 def contacts(frames: list[PoseFrame], px_pole: Optional[float], band: float = 0.09,
              min_dur: float = 0.25) -> list[Contact]:
     """Intervalli in cui una mano/piede sta sul palo (entro `band` in x) e
-    si muove poco. `px_pole` normalizzato; se None, niente contatti."""
+    si muove poco. `px_pole` normalizzato, usato come ancora iniziale del
+    tracking (vedi `_pole_track`): segue il palo se la camera si sposta
+    invece di restare fisso sulla stima globale. None -> niente contatti."""
     if px_pole is None:
         return []
+    track = _pole_track(frames, px_pole, band)
     out: list[Contact] = []
     for part, names in GRIP_PARTS.items():
         run_start = None
         last_xy = None
         acc = []
-        for pf in frames:
+        for pf, px in zip(frames, track):
             near = False
             xy = None
             if pf.lm is not None:
                 xy = _part_xy(pf.lm, names)
                 if xy is not None:
                     slow = last_xy is None or (abs(xy[0] - last_xy[0]) + abs(xy[1] - last_xy[1])) < 0.06
-                    near = abs(xy[0] - px_pole) < band and slow
+                    near = abs(xy[0] - px) < band and slow
             if near:
                 if run_start is None:
                     run_start = pf.t
@@ -297,7 +319,7 @@ def contacts(frames: list[PoseFrame], px_pole: Optional[float], band: float = 0.
                 run_start = None
             last_xy = xy
         if run_start is not None and frames and frames[-1].t - run_start >= min_dur:
-            m = np.mean(acc, axis=0) if acc else (px_pole, 0.5)
+            m = np.mean(acc, axis=0) if acc else (track[-1], 0.5)
             out.append(Contact(part, run_start, frames[-1].t, (float(m[0]), float(m[1]))))
     return sorted(out, key=lambda c: c.t0)
 
@@ -581,6 +603,10 @@ def debug_video(path: Path | str, out_path: Path | str, frames: list[PoseFrame],
     if i0:
         cap.set(cv2.CAP_PROP_POS_FRAMES, i0)
     by_t = sorted(frames, key=lambda f: f.t)
+    # traccia il palo fotogramma per fotogramma: se la camera si sposta,
+    # la linea disegnata deve seguirlo invece di restare ferma sulla stima
+    # globale (vedi `contacts`, che usa lo stesso tracking).
+    track = _pole_track(by_t, px_pole) if (px_pole is not None and by_t) else None
     labels = labels or {}
     events = events or []
     EV_COL = {"invert": (240, 80, 240), "arm_ext": (255, 220, 40),
@@ -638,7 +664,9 @@ def debug_video(path: Path | str, out_path: Path | str, frames: list[PoseFrame],
         if scale < 1.0:
             bgr = cv2.resize(bgr, (w, h), interpolation=cv2.INTER_AREA)
         t = (i - 1) / fps
-        pf = min(by_t, key=lambda f: abs(f.t - t)) if by_t else None
+        idx = min(range(len(by_t)), key=lambda k: abs(by_t[k].t - t)) if by_t else None
+        pf = by_t[idx] if idx is not None else None
+        px_now = float(track[idx]) if track is not None else px_pole
         hold_now = next((k for k, hd in enumerate(holds) if hd.t0 <= t <= hd.t1), None)
         blink = (i // max(1, int(fps * 0.35))) % 2 == 0
 
@@ -707,12 +735,12 @@ def debug_video(path: Path | str, out_path: Path | str, frames: list[PoseFrame],
             for part, names in GRIP_PARTS.items():
                 xy = _part_xy(L, names, 0.3)
                 if xy:
-                    on = px_pole is not None and abs(xy[0] - px_pole) < 0.09
+                    on = px_now is not None and abs(xy[0] - px_now) < 0.09
                     dot(bgr, (xy[0] * w, xy[1] * h), DOT, GREEN if on else AMBER, filled=on)
 
         # --- palo ---
-        if px_pole is not None:
-            xp = int(px_pole * w)
+        if px_now is not None:
+            xp = int(px_now * w)
             line(bgr, (xp, m), (xp, h - m), (0, 170, 255), TH + TF)
             txt(bgr, "PALO", (xp + int(12 * S), h // 2), 0.7, (0, 170, 255), bold=3)
 
