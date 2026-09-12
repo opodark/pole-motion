@@ -1,5 +1,19 @@
 # Avatar 3D sperimentale
 
+**Stato (2026-09-12): deprioritizzato, non e' il percorso principale.**
+Il corpo (rig articolato su modello glTF) e il palo nella scena 3D sono
+ricostruiti da due pipeline indipendenti — il primo dai `pose_world_landmarks`
+di MediaPipe (spazio 3D autonomo, centrato sul bacino, senza alcuna relazione
+con l'inquadratura del video), il secondo dalla posizione 2D del palo nel
+fotogramma convertita in metri con un fattore di scala arbitrario. Mani e
+palo possono quindi non combaciare affatto, e mancando la torsione assiale
+degli arti (non stimabile da una sola camera) i movimenti restano innaturali,
+specie durante inversioni e rotazioni veloci. Per un riferimento affidabile
+usare lo scheletro 2D nel player principale, che resta il percorso validato.
+Risolvere per bene richiederebbe una calibrazione per-video e/o un vincolo
+IK verso il palo nei momenti di presa nota: lavoro non banale, non ancora
+programmato.
+
 Riavviare lo Studio e ricaricare la pagina. Scegliere un video guida, quindi
 premere **Ricostruisci avatar 3D**. In assenza di guida si usa il video
 importato nel player principale. Per la webcam: registrare, scaricare il
