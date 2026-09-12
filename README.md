@@ -34,6 +34,10 @@ Il primo avvio dell'analisi scarica il modello MediaPipe. Il video debug richied
 Le registrazioni e i modelli sono esclusi da Git; l'esempio incluso è sintetico.
 L'export salva un hash del video, senza includere percorsi locali o il video stesso.
 
+Il prototipo webcam (`python -m pole_motion.webcam_demo`) non è collegato a `pyproject.toml`
+ed è a parte: apre una finestra live, quindi serve `pip install opencv-python` (non
+`opencv-python-headless`, installato dall'extra `pose`, che non supporta la GUI).
+
 ```powershell
 .venv\Scripts\python -m pytest
 ```

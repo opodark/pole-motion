@@ -112,11 +112,17 @@ def promote_hold(document, recording_id, hold_index, pose_id, name, reviewer, *,
     if notes:
         pose_entry["review"]["notes"] = notes
 
-    poses = document.setdefault("poses", [])
+    poses = document.get("poses", [])
     existing = next((i for i, p in enumerate(poses) if p["id"] == pose_id), None)
+    candidate_poses = list(poses)
     if existing is not None:
-        poses[existing] = pose_entry
+        candidate_poses[existing] = pose_entry
     else:
-        poses.append(pose_entry)
+        candidate_poses.append(pose_entry)
 
-    return validate(document)
+    candidate = dict(document)
+    candidate["poses"] = candidate_poses
+    validate(candidate)
+
+    document["poses"] = candidate_poses
+    return document
