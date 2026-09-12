@@ -64,6 +64,7 @@ class PoseFrame:
     t: float                                   # secondi
     lm: Optional[np.ndarray] = None            # (33, 3): x, y in [0,1], visibility
     n_people: int = 0
+    world: Optional[np.ndarray] = None  # estimated xyz meters + visibility, hip-centered
 
 
 @dataclass
@@ -136,10 +137,12 @@ def analyze_video(path: Path | str, fps_sample: float = 8.0, max_people: int = 1
     with PoseLandmarker.create_from_options(opts) as lm:
         i = i0
         while i <= i1:
-            ok, bgr = cap.read()
+            ok = cap.grab()
             if not ok:
                 break
             if (i - i0) % step == 0:
+                ok, bgr = cap.retrieve()
+                if not ok: break
                 t = i / src_fps
                 rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
                 res = lm.detect_for_video(
@@ -150,6 +153,9 @@ def analyze_video(path: Path | str, fps_sample: float = 8.0, max_people: int = 1
                     p = res.pose_landmarks[0]
                     pf.lm = np.array([[k.x, k.y, getattr(k, "visibility", 1.0)] for k in p],
                                      dtype=np.float32)
+                if res.pose_world_landmarks:
+                    pf.world = np.array([[k.x, k.y, k.z, getattr(k, "visibility", 1.0)]
+                                         for k in res.pose_world_landmarks[0]], dtype=np.float32)
                 frames.append(pf)
             i += 1
     cap.release()

@@ -22,7 +22,7 @@ pole-motion = "pole_motion.cli:main"
 packages = ["pole_motion"]
 
 [tool.setuptools.package-data]
-pole_motion = ["*.json"]
+pole_motion = ["*.json", "studio_web/*", "studio_web/vendor/*", "studio_web/models/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
