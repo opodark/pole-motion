@@ -19,6 +19,15 @@ const point = (points, value) => {
 };
 const midpoint = (points, a, b) => point(points, a).add(point(points, b)).multiplyScalar(0.5);
 
+// MediaPipe world landmarks are noisy on depth/visibility, especially during
+// pole tricks (fast spins, self-occlusion). Snapping bones straight to each
+// frame's raw estimate reads as the rig convulsing. VIS_RELEASE < VIS_ACQUIRE
+// gives visibility hysteresis (no flicker as it hovers near the threshold),
+// and SMOOTH slerps/lerps toward the target instead of jumping to it.
+const VIS_ACQUIRE = 0.25;
+const VIS_RELEASE = 0.12;
+const SMOOTH = 0.35;
+
 export class RealAvatar {
   constructor(canvas, sample, sampleRoot, status) {
     this.canvas = canvas;
@@ -30,6 +39,7 @@ export class RealAvatar {
     this.lastTime = null;
     this.bones = new Map();
     this.rest = new Map();
+    this.locked = new Map();
     this.followY = 0;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -114,6 +124,7 @@ export class RealAvatar {
     this.motion = motion;
     this.source = source;
     this.lastTime = null;
+    this.locked.clear();
     this.rootOrigin = motion.frames.map(frame => frame.root).find(root => root && root[2] >= 0.25) || null;
     if (this.basePosition) this.targetPosition = this.basePosition.clone();
   }
@@ -150,16 +161,23 @@ export class RealAvatar {
     const hips = this.bones.get('Hips');
     if (hips && [11, 12, 23, 24].every(index => points[index][3] >= 0.45)) {
       const torso = midpoint(points, 11, 12).sub(midpoint(points, 23, 24)).normalize();
-      hips.rotation.z = THREE.MathUtils.clamp(-Math.atan2(torso.x, torso.y), -1.2, 1.2);
+      const targetZ = THREE.MathUtils.clamp(-Math.atan2(torso.x, torso.y), -1.2, 1.2);
+      hips.rotation.z = THREE.MathUtils.lerp(hips.rotation.z, targetZ, SMOOTH);
     }
     for (const [name, start, end] of SEGMENTS) {
       const bone = this.bones.get(name), rest = this.rest.get(name);
-      if (!bone || !rest || Math.min(visibility(points, start), visibility(points, end)) < 0.25) continue;
-      bone.quaternion.copy(rest.quaternion);
+      if (!bone || !rest) continue;
+      const threshold = this.locked.get(name) ? VIS_RELEASE : VIS_ACQUIRE;
+      if (Math.min(visibility(points, start), visibility(points, end)) < threshold) {
+        this.locked.set(name, false);
+        continue;
+      }
+      this.locked.set(name, true);
       bone.updateWorldMatrix(true, false);
       const parentWorld = bone.parent.getWorldQuaternion(new THREE.Quaternion());
       const desired = point(points, end).sub(point(points, start)).normalize().applyQuaternion(parentWorld.invert());
-      bone.quaternion.copy(new THREE.Quaternion().setFromUnitVectors(rest.direction, desired).multiply(rest.quaternion));
+      const target = new THREE.Quaternion().setFromUnitVectors(rest.direction, desired).multiply(rest.quaternion);
+      bone.quaternion.slerp(target, SMOOTH);
       bone.updateWorldMatrix(true, true);
     }
 
